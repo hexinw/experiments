@@ -1,35 +1,54 @@
 #!/usr/bin/env python3
-import os
-import time
-import logging
 import argparse
+import logging
+import time
 from datetime import datetime, timedelta
-from torch.distributed import TCPStore
+
 from nvidia_resiliency_ext.fault_tolerance._ft_rendezvous import create_handler
-from nvidia_resiliency_ext.fault_tolerance._torch_elastic_compat.rendezvous import (
-    RendezvousParameters,
-)
-from nvidia_resiliency_ext.fault_tolerance._torch_elastic_compat.rendezvous.c10d_rendezvous_backend import (
+from torch.distributed import TCPStore
+from torch.distributed.elastic.rendezvous import RendezvousParameters
+from torch.distributed.elastic.rendezvous.c10d_rendezvous_backend import (
     C10dRendezvousBackend,
 )
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
-    datefmt='%Y-%m-%d:%H:%M:%S'
+    format="%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s",
+    datefmt="%Y-%m-%d:%H:%M:%S",
 )
 log = logging.getLogger(__name__)
 
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--master-addr", default="localhost", help="Master node address")
-    parser.add_argument("--master-port", type=int, default=29500, help="Master node port")
-    parser.add_argument("--node-id", type=int, required=True, help="Node ID (0 to total_nodes-1)")
-    parser.add_argument("--total-nodes", type=int, required=True, help="Total number of nodes")
-    parser.add_argument("--min-nodes", type=int, help="Minimum number of nodes (defaults to total_nodes)")
-    parser.add_argument("--max-nodes", type=int, help="Maximum number of nodes (defaults to total_nodes)")
-    parser.add_argument("--join-timeout", type=int, default=600, help="Join timeout in seconds")
-    parser.add_argument("--last-call-timeout", type=int, default=30, help="Last call timeout in seconds")
+    parser.add_argument(
+        "--master-addr", default="localhost", help="Master node address"
+    )
+    parser.add_argument(
+        "--master-port", type=int, default=29500, help="Master node port"
+    )
+    parser.add_argument(
+        "--node-id", type=int, required=True, help="Node ID (0 to total_nodes-1)"
+    )
+    parser.add_argument(
+        "--total-nodes", type=int, required=True, help="Total number of nodes"
+    )
+    parser.add_argument(
+        "--min-nodes",
+        type=int,
+        help="Minimum number of nodes (defaults to total_nodes)",
+    )
+    parser.add_argument(
+        "--max-nodes",
+        type=int,
+        help="Maximum number of nodes (defaults to total_nodes)",
+    )
+    parser.add_argument(
+        "--join-timeout", type=int, default=600, help="Join timeout in seconds"
+    )
+    parser.add_argument(
+        "--last-call-timeout", type=int, default=30, help="Last call timeout in seconds"
+    )
     args = parser.parse_args()
 
     # Validate node_id
@@ -55,17 +74,14 @@ def main():
         world_size=max_nodes,
         is_master=(args.node_id == 0),
         timeout=timedelta(seconds=args.join_timeout),
-        use_libuv=True
+        use_libuv=True,
     )
 
     # Create a unique run_id
-    run_id = f"test_rendezvous_1"
+    run_id = "test_rendezvous_1"
 
     # Create backend
-    backend = C10dRendezvousBackend(
-        store=store,
-        run_id=run_id
-    )
+    backend = C10dRendezvousBackend(store=store, run_id=run_id)
 
     # Create rendezvous parameters
     params = RendezvousParameters(
@@ -83,24 +99,31 @@ def main():
     handler = create_handler(store, backend, params)
 
     start_time = time.time()
-    log.info(f"Node {args.node_id} starting rendezvous at {datetime.fromtimestamp(start_time)}")
-    log.info(f"Configuration: total_nodes={args.total_nodes}, min_nodes={min_nodes}, max_nodes={max_nodes}")
-    
+    log.info(
+        f"Node {args.node_id} starting rendezvous at {datetime.fromtimestamp(start_time)}"
+    )
+    log.info(
+        f"Configuration: total_nodes={args.total_nodes}, min_nodes={min_nodes}, max_nodes={max_nodes}"
+    )
+
     try:
         store, rank, world_size = handler.next_rendezvous()
         end_time = time.time()
         duration = end_time - start_time
-        
-        log.info(f"Node {args.node_id} joined rendezvous as rank {rank} in {duration:.2f} seconds")
+
+        log.info(
+            f"Node {args.node_id} joined rendezvous as rank {rank} in {duration:.2f} seconds"
+        )
         log.info(f"World size: {world_size}")
-        
+
         # Keep the process alive to maintain the rendezvous
         while True:
             time.sleep(1)
-            
+
     except Exception as e:
         log.error(f"Node {args.node_id} failed: {str(e)}")
         raise
+
 
 if __name__ == "__main__":
     main()

@@ -17,8 +17,9 @@ services:
   master:
     image: test_rendezvous:latest
     container_name: test_rendezvous_master
+    network_mode: host
     command: >
-      --master-addr master
+      --master-addr 127.0.0.1
       --master-port 29500
       --node-id 0
       --total-nodes {TOTAL_NODES}
@@ -34,11 +35,12 @@ worker_template = """
   worker{node_id}:
     image: test_rendezvous:latest
     container_name: test_rendezvous_worker{node_id}
+    network_mode: host
     environment:
       - NODE_ID={node_id}
       - FT_LAUNCHER_LOGLEVEL=DEBUG
     command: >
-      --master-addr master
+      --master-addr 127.0.0.1
       --master-port 29500
       --node-id {node_id}
       --total-nodes {total}
